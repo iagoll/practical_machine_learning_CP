@@ -1,0 +1,97 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "iago lopez"
+date: "23/10/2015"
+output: html_document
+---
+
+1. Loading packages, the training and testing datasets
+```{r, echo=TRUE}
+###
+library(caret)
+library(rpart)
+library(randomForest)
+library(rattle)
+library(klaR)
+
+### Training data (emty values as NA)
+tr1 <- read.csv("pml-training.csv",na.strings=c("NA",""), header=TRUE)
+
+### Test data (emty values as NA)
+te1 <- read.csv("pml-testing.csv", na.strings=c("NA",""), header=TRUE)
+```
+
+2. Cleaning the training and testing data
+```{r}
+### Create a vector with length 160 and count the NA in every column
+v1 <- vector(length = 160)
+for(i in 1:160){v1[i] <- sum(is.na(tr1[,i]))}
+
+v2 <- vector(length = 160)
+for(i in 1:160){v2[i] <- sum(is.na(te1[,i]))}
+### New training data set only with columns with 0 NA (60)
+tr1 <- tr1[,which(v1==0)]
+te1 <- te1[,which(v2==0)]
+
+### Remove names, dates and ID
+tr1 <- tr1[,c(7:60)]
+te1 <- te1[,c(7:60)]
+```
+
+3. Divide training data into training and testing
+```{r}
+set.seed(99)
+inTrain <- createDataPartition(y=tr1$classe, p=0.7, list = F)
+training <- tr1[inTrain,]
+testing <- tr1[-inTrain,]
+```
+
+4. Train the model
+```{r}
+modFit1 <- train(classe ~ ., method = "rpart", data = training)
+```
+
+5. Estimate variable importance and see the list
+```{r}
+importance <- varImp(modFit1, scale=FALSE)
+plot(importance)
+```
+
+6. New train model with only 14 variables (highest importance)
+```{r}
+training2 <- training[,c("pitch_forearm","roll_forearm","roll_belt","magnet_dumbbell_y","accel_belt_z","yaw_belt","num_window","magnet_belt_y","total_accel_belt","magnet_arm_x","accel_arm_x","magnet_dumbbell_x","magnet_dumbbell_z","roll_arm","classe")]
+modFit2 <- train(classe ~ ., method = "rpart", data = training2)
+```
+
+7. New test model in testing data
+```{r}
+pre <- predict(modFit2,newdata = testing)
+print(confusionMatrix(pre, testing$classe), digits=4)
+```
+
+Accuracy of 48,97%. VERY POOR...
+
+8. Use random forest with cross validation to create a new model
+```{r}
+modFit3 <- train(classe ~ ., method="rf", trControl=trainControl(method = "cv", number = 4), data=training2)
+```
+
+9. Try this new model in the test data set
+```{r}
+pre2 <- predict(modFit3, newdata=testing)
+print(modFit3$finalModel)
+print(confusionMatrix(pre2, testing$classe), digits=4)
+```
+
+Accuracy of 99,81%.
+The out of sample error is the "error rate you get on new data set." 
+
+Random Forest (preprocessing and cross validation) Testing Set: 
+
+1-0.9981 = 0.0019
+
+10. Run the model against the 20 TEST set of the beggining.
+```{r}
+pre3 <- predict(modFit3, newdata=te1)
+print(pre3)
+```
